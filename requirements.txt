@@ -1,0 +1,33 @@
+# Core Dependencies
+lightrag-hku>=0.1.0
+markitdown>=0.0.1a2
+ollama>=0.4.4
+
+# Web UI
+gradio>=4.0.0
+
+# Data Processing
+python-docx>=1.1.0
+markdown>=3.5.0
+beautifulsoup4>=4.12.0
+
+# Vector & Graph
+numpy>=1.24.0
+networkx>=3.1
+
+# Configuration
+pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# Utilities
+tqdm>=4.66.0
+pathlib>=1.0.1
+
+# Development & Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+black>=23.0.0
+flake8>=6.1.0
+
+# Optional: Logging
+loguru>=0.7.0
