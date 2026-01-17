@@ -12,33 +12,41 @@
 
 ## 1. 전처리 API
 
-### 1.1 DocxConverter
+### 1.1 DocumentConverter
 
 #### convert_file()
 
 ```python
-def convert_file(self, docx_path: str) -> str:
+def convert_file(self, file_path: str) -> str:
     """
-    단일 .docx 파일을 마크다운으로 변환
+    단일 파일을 마크다운으로 변환 또는 로드
 
     Args:
-        docx_path (str): .docx 파일의 절대 경로
+        file_path (str): 파일의 절대 경로 (.docx 또는 .md)
 
     Returns:
-        str: 변환된 마크다운 텍스트
+        str: 마크다운 텍스트
 
     Raises:
         FileNotFoundError: 파일이 존재하지 않을 때
         PermissionError: 파일 읽기 권한이 없을 때
+        UnsupportedFormatError: 지원하지 않는 파일 형식
         MarkdownConversionError: 변환 실패 시
 
     Example:
-        >>> converter = DocxConverter()
+        >>> converter = DocumentConverter()
+
+        # .docx 파일 변환
         >>> markdown = converter.convert_file("/path/to/규정.docx")
         >>> print(markdown[:100])
         # 제1장 총칙
         ## 제1조 (목적)
         이 규정은...
+
+        # .md 파일 로드
+        >>> markdown = converter.convert_file("/path/to/규정.md")
+        >>> print(markdown[:100])
+        # 제1장 총칙...
     """
 ```
 
@@ -52,10 +60,10 @@ def convert_directory(
     recursive: bool = False
 ) -> List[ConversionResult]:
     """
-    디렉토리 내 모든 .docx 파일을 일괄 변환
+    디렉토리 내 모든 .docx 및 .md 파일을 일괄 변환
 
     Args:
-        dir_path (str): .docx 파일들이 있는 디렉토리 경로
+        dir_path (str): 파일들이 있는 디렉토리 경로
         output_dir (str, optional): 변환된 마크다운 저장 경로
         recursive (bool): 하위 디렉토리 포함 여부
 
@@ -71,7 +79,7 @@ def convert_directory(
         ...     output_dir="/data/processed"
         ... )
         >>> for result in results:
-        ...     print(f"{result.filename}: {result.status}")
+        ...     print(f"{result.filename} ({result.file_format}): {result.status}")
     """
 ```
 
@@ -746,17 +754,19 @@ ERROR_CODES = {
 ### 9.1 전체 워크플로우 예제
 
 ```python
-from src.preprocessing import DocxConverter, MarkdownParser, Chunker
+from src.preprocessing import DocumentConverter, MarkdownParser, Chunker
 from src.rag import LightRAGWrapper, Indexer, Searcher
 from src.llm import OllamaClient
 
 # 1. 전처리
-converter = DocxConverter()
+converter = DocumentConverter()
 parser = MarkdownParser()
 chunker = Chunker()
 
-# .docx → markdown
+# 파일 → markdown (.docx 또는 .md)
 markdown = converter.convert_file("/data/raw/규정001.docx")
+# 또는
+# markdown = converter.convert_file("/data/raw/규정002.md")
 
 # markdown → 구조화
 doc = parser.parse(markdown)
@@ -792,30 +802,34 @@ print(f"참조 청크 수: {len(search_result.chunks)}")
 import glob
 from pathlib import Path
 
-# 디렉토리 내 모든 .docx 파일 처리
-docx_files = glob.glob("/data/raw/**/*.docx", recursive=True)
+# 디렉토리 내 모든 .docx 및 .md 파일 처리
+doc_files = (
+    glob.glob("/data/raw/**/*.docx", recursive=True) +
+    glob.glob("/data/raw/**/*.md", recursive=True)
+)
 
 all_chunks = []
-for docx_file in docx_files:
+for doc_file in doc_files:
     try:
-        # 전처리
-        markdown = converter.convert_file(docx_file)
+        # 전처리 (자동으로 형식 감지)
+        markdown = converter.convert_file(doc_file)
         doc = parser.parse(markdown)
         chunks = chunker.chunk_document(doc)
 
         # 메타데이터 추가
         for chunk in chunks:
-            chunk.metadata["source_file"] = Path(docx_file).name
+            chunk.metadata["source_file"] = Path(doc_file).name
+            chunk.metadata["file_format"] = Path(doc_file).suffix.lower()
 
         all_chunks.extend(chunks)
 
     except Exception as e:
-        print(f"에러 ({docx_file}): {e}")
+        print(f"에러 ({doc_file}): {e}")
         continue
 
 # 일괄 인덱싱
 result = indexer.index_chunks(all_chunks, batch_size=20)
-print(f"총 {len(docx_files)}개 파일, {result.success_count}개 청크 인덱싱 완료")
+print(f"총 {len(doc_files)}개 파일, {result.success_count}개 청크 인덱싱 완료")
 ```
 
 ### 9.3 스트리밍 검색 예제
